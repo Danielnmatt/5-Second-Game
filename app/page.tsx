@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 
 export default function Home() {
 	const router = useRouter();
-	const [selectedMode, setSelectedMode] = useState<GameMode>('normal');
+	const [selectedModes, setSelectedModes] = useState<GameMode[]>(['normal']);
 	const [addPlayer, setAddPlayer] = useState<string>('');
 	const [players, setPlayers] = useState<string[]>([]);
 	const [winningScore, setWinningScore] = useState<number>(10);
@@ -21,7 +21,7 @@ export default function Home() {
 		}
 
 		const gameData = {
-			mode: selectedMode,
+			modes: selectedModes,
 			players: players,
 			winningScore: winningScore,
 			answerTimeSeconds: answerTimeSeconds,
@@ -34,7 +34,7 @@ export default function Home() {
 
 	return (
 		<div className='min-h-screen bg-background text-primary-text overflow-x-hidden'>
-			<div className='w-screen h-screen flex flex-col justify-center items-center'>
+			<div className='w-screen lg:h-screen flex flex-col justify-center items-center'>
 				<div className='relative flex flex-col lg:block'>
 					{/* --- Main Card --- */}
 					<main className='bg-card w-full max-w-xl p-8 rounded-3xl text-center border border-primary/30 shadow-primary/30 shadow-2xl relative z-20'>
@@ -50,8 +50,8 @@ export default function Home() {
 						</header>
 						{/* Select Mode */}
 						<ModeSelection
-							selectedMode={selectedMode}
-							setSelectedMode={setSelectedMode}
+							selectedModes={selectedModes}
+							setSelectedModes={setSelectedModes}
 						/>
 						{/* Start Game Button */}
 						<button

@@ -28,7 +28,7 @@ export default function PlayerSection({
 	};
 
 	return (
-		<aside className='mt-8 lg:mt-0 lg:absolute lg:top-0 lg:h-full lg:left-full lg:ml-8 w-64 flex flex-col z-10'>
+		<aside className='mt-8 lg:mt-0 lg:absolute lg:top-0 lg:h-full lg:left-full lg:ml-8 w-64 flex flex-col z-10 self-center'>
 			{/* Input Area */}
 			<div className='bg-card p-4 rounded-2xl border border-primary/20 shadow-xl w-full mb-4 shrink-0'>
 				<label

@@ -2,17 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { categoriesNormal, categoriesHard } from '../utils/categories';
+import { categories } from '../utils/categories';
 import { GameMode } from '../utils/game';
 
 const DEFAULT_ANSWER_SECONDS = 5.0;
 const PREVIEW_SECONDS = 3.0;
 const TICK_RATE_MS = 10;
 
-type TurnMode = Exclude<GameMode, 'mixed'>;
-
 type StoredGameData = {
-	mode: GameMode;
+	modes: GameMode[];
 	players: string[];
 	winningScore: number;
 	answerTimeSeconds: number;
@@ -23,13 +21,12 @@ type Phase = 'reveal' | 'preview' | 'active' | 'result' | 'gameover';
 export default function GameScreen() {
 	const router = useRouter();
 
-	const [gameMode, setGameMode] = useState<GameMode | null>(null);
 	const [players, setPlayers] = useState<string[]>([]);
 	const [winningScore, setWinningScore] = useState(10);
 	const [answerTimeSeconds, setAnswerTimeSeconds] = useState(
 		DEFAULT_ANSWER_SECONDS
 	);
-	const [turnMode, setTurnMode] = useState<TurnMode>('normal');
+	const [questionList, setQuestionList] = useState<string[]>([]);
 	const [scores, setScores] = useState<number[]>([]);
 	const [winnerIdx, setWinnerIdx] = useState<number | null>(null);
 	const [phase, setPhase] = useState<Phase>('reveal');
@@ -45,58 +42,6 @@ export default function GameScreen() {
 	const currentPlayerName = activePlayers[currentPlayerIdx];
 	const usedCategories = new Set();
 
-	const pickNewCategory = useCallback((modeForTurn: TurnMode) => {
-		let list: string[] = [];
-		if (modeForTurn === 'normal') {
-			list = categoriesNormal;
-		} else if (modeForTurn === 'hard') {
-			list = categoriesHard;
-		}
-
-		const randomIndex = Math.floor(Math.random() * list.length);
-
-		// All categories used, repeat some now until game over.
-		if (usedCategories.size >= list.length) {
-			usedCategories.clear();
-		}
-
-		// If category picked before, pick a new one.
-		if (usedCategories.has(list[randomIndex])) {
-			return pickNewCategory(modeForTurn);
-		}
-
-		usedCategories.add(list[randomIndex]);
-		setCurrentCategory(list[randomIndex] ?? '');
-	}, []);
-
-	// Helper: Initialize a fresh turn (starts at "Reveal")
-	const initTurn = useCallback(() => {
-		if (!gameMode) {
-			return;
-		}
-
-		const nextTurnMode: TurnMode =
-			gameMode === 'mixed'
-				? Math.random() < 0.5
-					? 'normal'
-					: 'hard'
-				: gameMode;
-
-		setTurnMode(nextTurnMode);
-		pickNewCategory(nextTurnMode);
-		setTimeLeft(answerTimeSeconds);
-		setPreviewLeft(PREVIEW_SECONDS);
-		setIsActive(false);
-		setPhase('reveal');
-	}, [answerTimeSeconds, gameMode, pickNewCategory]);
-
-	// Keep scores array aligned with players length
-	useEffect(() => {
-		const names = players.length > 0 ? players : ['Player 1'];
-		setScores((prev) => names.map((_, i) => prev[i] ?? 0));
-		setCurrentPlayerIdx((prev) => (prev >= names.length ? 0 : prev));
-	}, [players]);
-
 	// INITIAL LOAD: Read game config from localStorage
 	useEffect(() => {
 		try {
@@ -110,7 +55,6 @@ export default function GameScreen() {
 				return;
 			}
 
-			setGameMode(parsed.mode ?? 'normal');
 			setWinningScore(
 				parsed.winningScore && parsed.winningScore > 0
 					? parsed.winningScore
@@ -121,6 +65,14 @@ export default function GameScreen() {
 					? parsed.answerTimeSeconds
 					: DEFAULT_ANSWER_SECONDS
 			);
+
+			if (parsed.modes) {
+				let allQuestions: string[] = [];
+				for (const mode of parsed.modes) {
+					allQuestions.push(...categories[mode])
+				}
+				setQuestionList(allQuestions);
+			}
 
 			const shuffle = (array: string[]) => {
 				for (let i = array.length - 1; i > 0; i--) {
@@ -138,14 +90,54 @@ export default function GameScreen() {
 		}
 	}, []);
 
+	const pickNewCategory = useCallback(() => {
+		if (questionList.length === 0){
+			return;
+		}
+		
+		const randomIndex = Math.floor(Math.random() * questionList.length);
+
+		// All categories used, repeat some now until game over.
+		if (usedCategories.size >= questionList.length) {
+			usedCategories.clear();
+		}
+
+		// If category picked before, pick a new one.
+		if (usedCategories.has(questionList[randomIndex])) {
+			return pickNewCategory();
+		}
+
+		usedCategories.add(questionList[randomIndex]);
+		setCurrentCategory(questionList[randomIndex] ?? '');
+	}, [questionList]);
+
+	// Helper: Initialize a fresh turn (starts at "Reveal")
+	const initTurn = useCallback(() => {
+		if (questionList.length === 0){
+			return;
+		}
+		pickNewCategory();
+		setTimeLeft(answerTimeSeconds);
+		setPreviewLeft(PREVIEW_SECONDS);
+		setIsActive(false);
+		setPhase('reveal');
+	}, [answerTimeSeconds, pickNewCategory]);
+
+	// Keep scores array aligned with players length
 	useEffect(() => {
-		if (!gameMode) {
+		const names = players.length > 0 ? players : ['Player 1'];
+		setScores((prev) => names.map((_, i) => prev[i] ?? 0));
+		setCurrentPlayerIdx((prev) => (prev >= names.length ? 0 : prev));
+	}, [players]);
+
+	useEffect(() => {
+		if (questionList.length === 0){
 			return;
 		}
 		setWinnerIdx(null);
 		setPhase('reveal');
 		initTurn();
-	}, [gameMode, initTurn]);
+	}, [initTurn]);
 
 	// PREVIEW COUNTDOWN (3 seconds after "Reveal")
 	useEffect(() => {
@@ -375,7 +367,7 @@ export default function GameScreen() {
 
 			{/* Pass/Fail Buttons */}
 			{phase === 'result' && (
-				<footer className='mt-12 flex flex-col md:flex-row gap-4 w-full max-w-2xl relative z-20 text-white'>
+				<footer className='mt-12 flex flex-row gap-4 w-full max-w-2xl relative z-20 text-white'>
 					{/* Pass Button (Green) */}
 					<button
 						onClick={() => handlePassFail(true)}

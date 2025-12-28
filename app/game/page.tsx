@@ -7,7 +7,7 @@ import { GameMode } from '../utils/game';
 
 const DEFAULT_ANSWER_SECONDS = 5.0;
 const PREVIEW_SECONDS = 3.0;
-const TICK_RATE_MS = 100;
+const TICK_RATE_MS = 10;
 
 type TurnMode = Exclude<GameMode, 'mixed'>;
 
@@ -23,7 +23,6 @@ type Phase = 'reveal' | 'preview' | 'active' | 'result' | 'gameover';
 export default function GameScreen() {
 	const router = useRouter();
 
-	// --- State ---
 	const [gameMode, setGameMode] = useState<GameMode | null>(null);
 	const [players, setPlayers] = useState<string[]>([]);
 	const [winningScore, setWinningScore] = useState(10);
@@ -41,25 +40,27 @@ export default function GameScreen() {
 	const [previewLeft, setPreviewLeft] = useState(PREVIEW_SECONDS);
 	const [isActive, setIsActive] = useState(false);
 
-	const activePlayers = players
+	const activePlayers = players;
 	const totalTime = answerTimeSeconds;
 	const currentPlayerName = activePlayers[currentPlayerIdx];
 	const usedCategories = new Set();
 
-	// Helper: Pick a random category based on a turn's mode
 	const pickNewCategory = useCallback((modeForTurn: TurnMode) => {
 		let list: string[] = [];
 		if (modeForTurn === 'normal') {
 			list = categoriesNormal;
-		}
-		else if (modeForTurn === 'hard') {
+		} else if (modeForTurn === 'hard') {
 			list = categoriesHard;
-		}
-		else if (modeForTurn === 'mixed') {
-			list = [...categoriesNormal, ...categoriesHard];
 		}
 
 		const randomIndex = Math.floor(Math.random() * list.length);
+
+		// All categories used, repeat some now until game over.
+		if (usedCategories.size >= list.length) {
+			usedCategories.clear();
+		}
+
+		// If category picked before, pick a new one.
 		if (usedCategories.has(list[randomIndex])) {
 			return pickNewCategory(modeForTurn);
 		}
@@ -70,7 +71,9 @@ export default function GameScreen() {
 
 	// Helper: Initialize a fresh turn (starts at "Reveal")
 	const initTurn = useCallback(() => {
-		if (!gameMode) return;
+		if (!gameMode) {
+			return;
+		}
 
 		const nextTurnMode: TurnMode =
 			gameMode === 'mixed'
@@ -99,42 +102,46 @@ export default function GameScreen() {
 		try {
 			const raw = localStorage.getItem('5SecondGameData');
 			if (!raw) {
-				setGameMode('normal');
-				setPlayers([]);
 				return;
 			}
 
 			const parsed = JSON.parse(raw) as Partial<StoredGameData>;
-			const parsedMode =
-				parsed.mode === 'normal' ||
-				parsed.mode === 'hard' ||
-				parsed.mode === 'mixed'
-					? parsed.mode
-					: 'normal';
-			setGameMode(parsedMode);
+			if (!parsed) {
+				return;
+			}
+
+			setGameMode(parsed.mode ?? 'normal');
 			setWinningScore(
-				typeof parsed.winningScore === 'number' &&
-					Number.isFinite(parsed.winningScore) &&
-					parsed.winningScore >= 1
-					? Math.floor(parsed.winningScore)
+				parsed.winningScore && parsed.winningScore > 0
+					? parsed.winningScore
 					: 10
 			);
 			setAnswerTimeSeconds(
-				typeof parsed.answerTimeSeconds === 'number' &&
-					Number.isFinite(parsed.answerTimeSeconds) &&
-					parsed.answerTimeSeconds > 0
+				parsed.answerTimeSeconds && parsed.answerTimeSeconds > 0
 					? parsed.answerTimeSeconds
 					: DEFAULT_ANSWER_SECONDS
 			);
-			setPlayers(Array.isArray(parsed.players) ? parsed.players : []);
+
+			const shuffle = (array: string[]) => {
+				for (let i = array.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					[array[i], array[j]] = [array[j], array[i]];
+				}
+				return array;
+			};
+
+			const shuffledPlayers = shuffle(parsed.players ?? [])
+			setPlayers(shuffledPlayers ? shuffledPlayers : []);
+
 		} catch {
-			setGameMode('normal');
-			setPlayers([]);
+			return;
 		}
 	}, []);
 
 	useEffect(() => {
-		if (!gameMode) return;
+		if (!gameMode) {
+			return;
+		}
 		setWinnerIdx(null);
 		setPhase('reveal');
 		initTurn();
@@ -142,7 +149,9 @@ export default function GameScreen() {
 
 	// PREVIEW COUNTDOWN (3 seconds after "Reveal")
 	useEffect(() => {
-		if (phase !== 'preview') return;
+		if (phase !== 'preview') {
+			return;
+		}
 
 		let interval: ReturnType<typeof setInterval> | undefined;
 		interval = setInterval(() => {
@@ -223,7 +232,7 @@ export default function GameScreen() {
 		router.push('/');
 	};
 
-	// --- UI Calculations ---
+	// UI Calculations
 	const showPrompt = phase !== 'reveal' && phase !== 'gameover';
 	const displayTotal = phase === 'preview' ? PREVIEW_SECONDS : totalTime;
 	const displayTime = phase === 'preview' ? previewLeft : timeLeft;
@@ -346,8 +355,8 @@ export default function GameScreen() {
 					<div
 						className={`text-7xl font-mono font-bold transition-all duration-200 ${timerTextClass}`}>
 						{phase === 'reveal' || phase === 'gameover'
-							? ' '
-							: displayTime.toFixed(1)}
+							? ''
+							: displayTime.toFixed(2)}
 					</div>
 				</div>
 
@@ -364,7 +373,7 @@ export default function GameScreen() {
 				)}
 			</main>
 
-			{/* Action Buttons */}
+			{/* Pass/Fail Buttons */}
 			{phase === 'result' && (
 				<footer className='mt-12 flex flex-col md:flex-row gap-4 w-full max-w-2xl relative z-20 text-white'>
 					{/* Pass Button (Green) */}

@@ -39,22 +39,32 @@ function ModeSelectionButton({
 }
 
 interface ModeSelectionProps {
-    selectedMode: GameMode;
-    setSelectedMode: (mode: GameMode) => void;
+	selectedModes: GameMode[];
+	setSelectedModes: (mode: GameMode[]) => void;
 }
 
-export default function ModeSelection({selectedMode, setSelectedMode} : ModeSelectionProps) {
+export default function ModeSelection({
+	selectedModes,
+	setSelectedModes,
+}: ModeSelectionProps) {
 	return (
-		<section
-			className={`grid grid-cols-1 md:grid-cols-${GAMEMODES.length} gap-4 mb-8`}>
+		<section className={`grid grid-cols-2 gap-4 mb-8`}>
 			{GAMEMODES.map((mode) => (
 				<ModeSelectionButton
 					key={mode.id}
 					id={mode.id}
 					label={mode.label}
 					description={mode.description}
-					isSelected={selectedMode === mode.id}
-					onSelect={setSelectedMode}
+					isSelected={selectedModes.some((m) => m === mode.id)}
+					onSelect={() => {
+						if (selectedModes.includes(mode.id)) {
+							setSelectedModes(
+								selectedModes.filter((m) => m !== mode.id)
+							);
+						} else {
+							setSelectedModes([...selectedModes, mode.id]);
+						}
+					}}
 				/>
 			))}
 		</section>
